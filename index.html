@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IIDXdle</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main>
+  <header>
+    <h1>IIDXdle</h1>
+    <p class="sub">譜面はBPL S6 課題曲より出題されます。</p>
+    <p id="datebadge" class="badge"></p>
+  </header>
+
+  <section aria-label="ヒント">
+    <ol id="pips" class="pips" aria-label="回答の残り回数"></ol>
+    <div id="measures" class="measures" aria-live="polite"></div>
+  </section>
+
+  <section id="play" aria-label="回答">
+    <form id="form" autocomplete="off">
+      <div class="combo">
+        <input id="answer" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="sugg"
+               placeholder="曲名を入力して、候補から選ぶ" spellcheck="false" enterkeyhint="send">
+        <ul id="sugg" role="listbox" hidden></ul>
+      </div>
+      <p id="hint" class="note" aria-live="polite"></p>
+      <div class="row">
+        <button id="submit" type="submit" disabled>回答する</button>
+        <button id="skip" type="button" class="ghost">スキップ(次のヒントへ)</button>
+      </div>
+    </form>
+    <ul id="history" class="history" aria-label="これまでの回答"></ul>
+  </section>
+
+  <section id="result" class="result" hidden aria-live="polite"></section>
+  <p id="error" class="error" hidden></p>
+
+  <footer>
+    <p>譜面データ: <a href="https://textage.cc/" target="_blank" rel="noopener">TexTage</a>(泡井七月さん)。非公式の個人制作です。曲・譜面の権利は KONAMI 等に帰属します。</p>
+  </footer>
+</main>
+<script src="core.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
