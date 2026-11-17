@@ -159,7 +159,7 @@
     var cs = m.c || [];                           // CN/HCN の本体(ノーツより下に描く)
     for (var j = 0; j < cs.length; j++) {
       var c = cs[j], y0 = Math.max(0, c[2]), y1 = Math.min(h, c[2] + c[3]);
-      if (y1 > y0) s.push('<rect class="c-' + c[0] + (c[4] ? ' hcn' : '') + '" x="' + (c[0] === 's' ? 2 : c[1] + 1) + '" y="' + y0 + '" width="' + (c[0] === 's' ? 32 : 11) + '" height="' + (y1 - y0) + '"/>');
+      if (y1 > y0) s.push('<rect class="c-' + c[0] + (c[4] ? ' hcn' : '') + '" x="' + c[1] + '" y="' + y0 + '" width="' + (c[0] === 's' ? 32 : 11) + '" height="' + (y1 - y0) + '"/>');
     }
     for (var i = 0; i < m.notes.length; i++) {
       var n = m.notes[i];
