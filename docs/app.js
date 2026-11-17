@@ -6,7 +6,7 @@
   var date = debugDate || C.jstDate();
   var KEY = 'bplquiz:v1:' + date;
 
-  var testMode = false, seedKey = date, manifest, puzzle, picked, tries, guesses = [], selected = null, active = -1, shown = [];
+  var testMode = false, seedKey = date, manifest, puzzle, picked, hintList = [], hintShown = 0, tries, guesses = [], selected = null, active = -1, shown = [];
 
   function load() { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch (e) { return []; } }
   function save() { if (testMode) return; try { localStorage.setItem(KEY, JSON.stringify(guesses)); } catch (e) { /* 保存できなくても遊べる */ } }
@@ -29,7 +29,7 @@
       if (!puzzle) throw new Error('出題できる譜面データがありません。fetch_charts.py → build_site_data.py を実行してください。');
       return getJson('data/charts/' + puzzle.id + '.json');
     }).then(function (chart) {
-      chart.id = puzzle.id; picked = C.pickMeasures(chart, seedKey); tries = picked.length;
+      chart.id = puzzle.id; picked = C.pickMeasures(chart, seedKey); hintList = C.pickHints(puzzle); tries = picked.length;
       if (!tries) throw new Error('この譜面には出題できる小節がありません: ' + puzzle.id);
       guesses = testMode ? [] : load().slice(0, tries); bind(); render(false);
     }).catch(function (e) {
@@ -46,6 +46,14 @@
     for (var i = prev; i < st.revealed; i++) {
       var d = document.createElement('div'); d.className = 'mcard' + (animate ? ' new' : '');
       d.innerHTML = '<b>ヒント ' + (i + 1) + '</b><div class="mrow">' + C.measureSvg(picked[i]) + '<div class="mno">' + picked[i].n + '</div></div>'; box.appendChild(d); shown.push(i);
+    }
+    // 追加ヒント: 2回目=カテゴリ → 3回目=レベル → 4回目=BPM → 5回目=作曲家名(持っていない項目は出さない)
+    var hbox = $('hints'), want = C.hintCount(st);
+    for (; hintShown < want; hintShown++) {
+      var hd = hintList[hintShown]; if (!hd) continue;
+      var hl = document.createElement('li'); hl.className = animate ? 'new' : '';
+      var hb = document.createElement('b'); hb.textContent = hd.label;
+      hl.appendChild(hb); hl.appendChild(document.createTextNode(hd.text)); hbox.appendChild(hl);
     }
     // 回数表示
     var pips = $('pips'); pips.innerHTML = '';

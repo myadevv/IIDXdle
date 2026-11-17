@@ -1,7 +1,7 @@
 /* 譜面当て: 画面に依存しない中核ロジック(Node でもテストできる) */
 (function (root) {
   'use strict';
-  var CONFIG = { MAX_TRIES: 5, MIN_NOTES: 1, MIN_HEIGHT: 64, SALT: 'iidx-bpl-s6-quiz', TZ: 'Asia/Tokyo' };
+  var CONFIG = { MAX_TRIES: 5, MIN_NOTES: 1, MIN_HEIGHT: 64, MIN_GAP: 8, SHORT_CHART: 50, MIN_GAP_SHORT: 4, SALT: 'iidx-bpl-s6-quiz', TZ: 'Asia/Tokyo' };
   var JST_OFFSET_MS = 9 * 3600 * 1000;                 // 日本は夏時間なし
 
   /** 日本時間(JST)の日付 'YYYY-MM-DD'。0時で切り替わる */
@@ -35,14 +35,31 @@
 
   /** 出題に使える小節(空の小節・極端に短い端数小節は除く) */
   function eligibleMeasures(chart) {
-    return chart.measures.filter(function (m) { return m.notes.length >= CONFIG.MIN_NOTES && m.h >= CONFIG.MIN_HEIGHT; });
+    return chart.measures.filter(function (m) { return m.notes.length + (m.c ? m.c.length : 0) >= CONFIG.MIN_NOTES && m.h >= CONFIG.MIN_HEIGHT; });
   }
-  /** 今日の小節(最初の1つ + 不正解ごとに1つ。重複なし、最大 MAX_TRIES) */
+  /** 今日の小節(最初の1つ + 不正解ごとに1つ。重複なし、最大 MAX_TRIES)。
+      どの2小節も小節番号が離れるように選ぶ: 50小節以下の譜面は4小節以上、50小節を超える譜面は8小節以上。離せない譜面だけ、足りない分を近い小節で補う */
+  function minGap(chart) { return chart.measures.length <= CONFIG.SHORT_CHART ? CONFIG.MIN_GAP_SHORT : CONFIG.MIN_GAP; }
   function pickMeasures(chart, date) {
     var pool = eligibleMeasures(chart).slice().sort(function (a, b) { return a.n - b.n; });
-    var rng = rngFor('measures|' + date + '|' + chart.id);
-    for (var i = pool.length - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)); var t = pool[i]; pool[i] = pool[j]; pool[j] = t; }
-    return pool.slice(0, CONFIG.MAX_TRIES);
+    var rng = rngFor('measures|' + date + '|' + chart.id), need = Math.min(CONFIG.MAX_TRIES, pool.length), gap = minGap(chart), best = [], order;
+    function far(m, chosen) { return chosen.every(function (c) { return Math.abs(c.n - m.n) >= gap; }); }
+    for (var attempt = 0; attempt < 400 && best.length < need; attempt++) {
+      order = pool.slice();
+      for (var i = order.length - 1; i > 0; i--) { var j = Math.floor(rng() * (i + 1)); var t = order[i]; order[i] = order[j]; order[j] = t; }
+      var chosen = [];
+      for (var k = 0; k < order.length && chosen.length < need; k++) if (far(order[k], chosen)) chosen.push(order[k]);
+      if (chosen.length > best.length) best = chosen;
+    }
+    if (best.length < need) {                    // 離しきれない譜面: 残りは他の小節から、できるだけ離れたものを足す
+      var rest = pool.filter(function (m) { return best.indexOf(m) < 0; });
+      while (best.length < need && rest.length) {
+        var bi = 0, bd = -1;
+        rest.forEach(function (m, idx) { var d = Math.min.apply(null, best.map(function (c) { return Math.abs(c.n - m.n); }).concat([999])); if (d > bd) { bd = d; bi = idx; } });
+        best.push(rest.splice(bi, 1)[0]);
+      }
+    }
+    return best;
   }
 
   /** 検索用の正規化(全角半角・大小文字・記号を無視)。記号だけの曲名は記号を残す */
@@ -103,6 +120,20 @@
     return hit.length === 1 ? hit[0] : null;
   }
 
+
+  /** 追加ヒント。2回目=カテゴリ、3回目=レベル、4回目=BPM、5回目=作曲家名 の順に1つずつ(固定)。
+      戻り値は4枠の配列で、その曲が持っていない項目は null(枠はずらさない) */
+  function pickHints(puzzle) {
+    return [
+      puzzle.cats && puzzle.cats.length ? { label: 'カテゴリ', text: puzzle.cats.join(' / ') } : null,
+      puzzle.level != null ? { label: 'レベル', text: '☆' + puzzle.level } : null,
+      puzzle.bpm ? { label: 'BPM', text: puzzle.bpm } : null,
+      puzzle.artist ? { label: '作曲家', text: puzzle.artist } : null
+    ];
+  }
+  /** いま見せる枠の数: 1回目0 → 2回目1 → 3回目2 → 4回目3 → 5回目4。終了後は全部 */
+  function hintCount(st) { return st.over ? 4 : Math.max(0, Math.min(4, st.revealed - 1)); }
+
   function isCorrect(puzzle, title) { return title === puzzle.title; }
   /** 回答履歴から状態を求める。tries = この日に使える回数(小節が足りない譜面は5未満) */
   function gameState(puzzle, guesses, tries) {
@@ -125,15 +156,20 @@
     s.push('<rect class="lane-s" x="0" y="0" width="36" height="' + h + '"/>');
     for (var k = 0; k < 7; k++) s.push('<rect class="lane-' + (k % 2 ? 'b' : 'w') + '" x="' + (37 + 14 * k) + '" y="0" width="13" height="' + h + '"/>');
     for (var b = 1; b < 4; b++) s.push('<rect class="beat" x="0" y="' + Math.round(h * b / 4) + '" width="' + W + '" height="1"/>');
+    var cs = m.c || [];                           // CN/HCN の本体(ノーツより下に描く)
+    for (var j = 0; j < cs.length; j++) {
+      var c = cs[j], y0 = Math.max(0, c[2]), y1 = Math.min(h, c[2] + c[3]);
+      if (y1 > y0) s.push('<rect class="c-' + c[0] + (c[4] ? ' hcn' : '') + '" x="' + (c[0] === 's' ? 2 : c[1] + 1) + '" y="' + y0 + '" width="' + (c[0] === 's' ? 32 : 11) + '" height="' + (y1 - y0) + '"/>');
+    }
     for (var i = 0; i < m.notes.length; i++) {
       var n = m.notes[i];
-      s.push('<rect class="n-' + n[0] + '" x="' + n[1] + '" y="' + Math.max(0, n[2]) + '" width="' + (n[0] === 's' ? 36 : 13) + '" height="4"/>');
+      s.push('<rect class="n-' + n[0] + '" x="' + n[1] + '" y="' + Math.max(0, n[2]) + '" width="' + (n[0] === 's' || n[0] === 'r' ? 36 : 13) + '" height="4"/>');
     }
     return s.join('') + '</svg>';
   }
 
   var api = { CONFIG: CONFIG, jstDate: jstDate, msUntilNextJstMidnight: msUntilNextJstMidnight, rngFor: rngFor, pickPuzzle: pickPuzzle,
-    eligibleMeasures: eligibleMeasures, pickMeasures: pickMeasures, normalize: normalize, searchKeys: searchKeys, suggest: suggest, resolveTitle: resolveTitle,
+    eligibleMeasures: eligibleMeasures, pickMeasures: pickMeasures, minGap: minGap, pickHints: pickHints, hintCount: hintCount, normalize: normalize, searchKeys: searchKeys, suggest: suggest, resolveTitle: resolveTitle,
     isCorrect: isCorrect, gameState: gameState, shareText: shareText, measureSvg: measureSvg };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.QuizCore = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
