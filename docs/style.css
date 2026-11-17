@@ -54,5 +54,5 @@ button:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .error{color:#ffb4b4;background:#2a1517;border:1px solid #5a2a2e;border-radius:10px;padding:12px 14px;font-size:14px;overflow-wrap:anywhere}
 footer{margin-top:36px;color:var(--mut);font-size:12px}
 footer a{color:var(--mut)}
-@media (max-width:420px){.mcard{flex:1 1 calc(50% - 6px)}.mcard svg{flex:1 1 auto;width:auto;min-width:0}.mcard .mno{flex-basis:20px;font-size:11px}}
+@media (max-width:420px){.mcard{flex:0 0 calc(50% - 6px);min-width:0;box-sizing:border-box}.mcard svg{flex:1 1 auto;width:auto;min-width:0}.mcard .mno{flex-basis:20px;font-size:11px}}
 @media (prefers-reduced-motion:reduce){.mcard.new,.hints li.new{animation:none}}
